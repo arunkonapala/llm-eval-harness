@@ -1,0 +1,26 @@
+# Copy to config.ini. No secrets go in this file — API keys come from the
+# environment variable named in api_key_env.
+
+[judge]
+# The model DeepEval uses to score responses.
+provider = openai
+model = llama-3.3-70b-versatile
+base_url = https://api.groq.com/openai/v1
+api_key_env = LLM_API_KEY
+
+[candidate]
+# The model(s) being evaluated. Either define one inline like [judge], or
+# point at multiple sections for side-by-side comparison:
+sections = candidate_groq
+
+[candidate_groq]
+provider = openai
+model = llama-3.1-8b-instant
+base_url = https://api.groq.com/openai/v1
+api_key_env = LLM_API_KEY
+
+# Bedrock example (uses your AWS credentials / region):
+# [candidate_claude]
+# provider = bedrock
+# model = anthropic.claude-sonnet-4-6
+# region = us-east-1

@@ -33,11 +33,28 @@ class OpenAICompatibleLLM(DeepEvalBaseLLM):
         return self.client
 
     def generate(self, prompt: str) -> str:
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content or ""
+        import re
+        import time
+
+        import openai
+
+        # Free-tier endpoints (Groq) enforce per-minute token windows that
+        # outlast the SDK's built-in backoff — honor the server's suggested
+        # wait so CI eval runs survive TPM exhaustion instead of erroring.
+        last_error: Exception | None = None
+        for _ in range(5):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.choices[0].message.content or ""
+            except openai.RateLimitError as exc:
+                last_error = exc
+                match = re.search(r"try again in ([\d.]+)s", str(exc))
+                wait = float(match.group(1)) + 1 if match else 20.0
+                time.sleep(min(wait, 75.0))
+        raise last_error
 
     async def a_generate(self, prompt: str) -> str:
         return self.generate(prompt)

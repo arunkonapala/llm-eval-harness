@@ -27,6 +27,11 @@ The gate decision (`evaluator/gate.py`) is a pure function over the runner's
 summary JSON, unit-tested without any API calls. Set the `LLM_API_KEY`
 repository secret to enable the live eval job.
 
+Proof it works: with `llama-3.1-8b-instant` as the candidate, the gate
+[blocked the run](https://github.com/arunkonapala/llm-eval-harness/actions)
+at an 83% pass rate (2 of 3 G-Eval correctness failures); the CI candidate
+is `llama-3.3-70b-versatile`, which clears it.
+
 ```
 data/testcases.csv ──► candidate model(s) ──► actual responses
                                 │

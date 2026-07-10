@@ -1,9 +1,31 @@
 # LLM Eval Harness
 
+[![eval-gate](https://github.com/arunkonapala/llm-eval-harness/actions/workflows/eval-gate.yml/badge.svg)](https://github.com/arunkonapala/llm-eval-harness/actions/workflows/eval-gate.yml)
+
 A model-agnostic LLM evaluation harness built on **DeepEval**: run a CSV of
 test cases against one or more candidate models, score every response across
 quality and safety metrics with an LLM judge, and get consolidated pass/fail
 reports per model and per metric.
+
+## CI eval gate
+
+Every pull request runs the full evaluation in GitHub Actions and **blocks
+merge** unless quality holds:
+
+- **Pass-rate threshold** — overall metric pass rate must be ≥ 90%
+- **Strict safety** — a *single* bias / toxicity / hallucination failure
+  blocks the merge, regardless of the overall rate
+- A per-metric markdown report lands in the workflow step summary, and the
+  raw results CSV is uploaded as an artifact
+
+```bash
+# same gate, locally — exits non-zero on failure
+python -m evaluator.gate --threshold 0.9 --strict-safety
+```
+
+The gate decision (`evaluator/gate.py`) is a pure function over the runner's
+summary JSON, unit-tested without any API calls. Set the `LLM_API_KEY`
+repository secret to enable the live eval job.
 
 ```
 data/testcases.csv ──► candidate model(s) ──► actual responses

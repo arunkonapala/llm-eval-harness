@@ -51,8 +51,12 @@ class OpenAICompatibleLLM(DeepEvalBaseLLM):
                 return response.choices[0].message.content or ""
             except openai.RateLimitError as exc:
                 last_error = exc
-                match = re.search(r"try again in ([\d.]+)s", str(exc))
-                wait = float(match.group(1)) + 1 if match else 20.0
+                # Groq formats the wait as "1.5s" or "2m3.4s"
+                match = re.search(r"try again in (?:(\d+)m)?([\d.]+)s", str(exc))
+                if match:
+                    wait = int(match.group(1) or 0) * 60 + float(match.group(2)) + 1
+                else:
+                    wait = 20.0
                 time.sleep(min(wait, 75.0))
         raise last_error
 

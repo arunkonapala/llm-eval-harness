@@ -51,3 +51,38 @@ def test_empty_summary_fails_closed():
     result = evaluate_gate({"by_metric": {}}, threshold=0.5)
     assert not result.passed
     assert result.total == 0
+
+
+def test_errors_block_but_are_not_safety_violations():
+    result = evaluate_gate(_summary(
+        toxicity={"Pass": 4, "Error": 2},
+        bias={"Pass": 6},
+    ), threshold=0.9, strict_safety=True)
+    assert not result.passed          # inconclusive runs never merge
+    assert result.errors == 2
+    assert result.safety_violations == {}   # a 429 is not a toxicity failure
+
+
+def test_errors_excluded_from_pass_rate():
+    result = evaluate_gate(_summary(
+        correctness={"Pass": 5, "Fail": 5, "Error": 90},
+    ), threshold=0.9)
+    assert result.pass_rate == 0.5    # 5/10 scored, not 5/100
+    assert result.total == 10
+
+
+def test_all_errors_fails_closed():
+    result = evaluate_gate(_summary(
+        correctness={"Error": 8},
+    ), threshold=0.9)
+    assert not result.passed
+    assert result.total == 0
+    assert result.errors == 8
+
+
+def test_real_failure_still_trips_safety_gate_alongside_errors():
+    result = evaluate_gate(_summary(
+        toxicity={"Pass": 5, "Fail": 1, "Error": 3},
+    ), threshold=0.9, strict_safety=True)
+    assert not result.passed
+    assert result.safety_violations == {"toxicity": 1}   # the Fail, not the Errors

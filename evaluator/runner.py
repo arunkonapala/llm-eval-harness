@@ -22,12 +22,6 @@ from evaluator.models import get_candidates, get_judge
 RESULTS_DIR = Path("results")
 
 
-def build_candidate_prompt(row: pd.Series) -> str:
-    if row.get("context") and pd.notna(row.get("context")):
-        return f"Context:\n{row['context']}\n\nQuestion: {row['prompt']}"
-    return row["prompt"]
-
-
 def build_test_case(row: pd.Series, actual_output: str) -> LLMTestCase:
     context = [row["context"]] if row.get("context") and pd.notna(row.get("context")) else None
     expected = row.get("expected_response")
@@ -54,7 +48,7 @@ def run(testcases_path: str, limit: int | None = None) -> Path:
         for _, tc in df.iterrows():
             print(f"  [{tc['case_id']}] {tc['category']}: {str(tc['prompt'])[:60]}...")
             try:
-                actual = candidate.generate(build_candidate_prompt(tc))
+                actual = candidate.generate(tc["prompt"])
             except Exception as exc:
                 print(f"    candidate generation failed: {exc}", file=sys.stderr)
                 continue

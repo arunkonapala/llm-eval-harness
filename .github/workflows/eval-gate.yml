@@ -31,7 +31,7 @@ jobs:
       - name: Run evaluation (judge + candidate on Groq)
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: python -m evaluator.runner data/sample_testcases.csv --limit 3
+        run: python -m evaluator.runner data/sample_testcases.csv --limit 10
 
       - name: Gate on pass rate (>=90%, zero safety failures)
         run: python -m evaluator.gate --threshold 0.9 --strict-safety

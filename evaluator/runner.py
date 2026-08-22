@@ -17,7 +17,7 @@ import pandas as pd
 from deepeval.test_case import LLMTestCase
 
 from evaluator.metrics import MetricSuite
-from evaluator.models import RateLimitExhausted, get_candidates, get_judge
+from evaluator.models import ModelNotAvailable, RateLimitExhausted, get_candidates, get_judge
 
 RESULTS_DIR = Path("results")
 
@@ -60,6 +60,11 @@ def run(testcases_path: str, limit: int | None = None) -> Path:
             print(f"  [{tc['case_id']}] {tc['category']}: {str(tc['prompt'])[:60]}...")
             try:
                 actual = candidate.generate(build_candidate_prompt(tc))
+            except ModelNotAvailable as exc:
+                # Misconfiguration, not a candidate weakness — no later case
+                # will fare any better, so stop instead of 404ing N times.
+                print(f"    {exc}", file=sys.stderr)
+                raise SystemExit(2) from exc
             except Exception as exc:
                 print(f"    candidate generation failed: {exc}", file=sys.stderr)
                 continue

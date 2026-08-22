@@ -25,6 +25,10 @@ class RateLimitExhausted(RuntimeError):
     """A quota that will not reset before the run ends (e.g. Groq's TPD cap)."""
 
 
+class ModelNotAvailable(RuntimeError):
+    """The configured model id isn't one this API key can reach."""
+
+
 def parse_retry_wait(message: str) -> float | None:
     """Seconds to sleep before retrying a 429, or None if retrying is futile.
 
@@ -65,6 +69,12 @@ class OpenAICompatibleLLM(DeepEvalBaseLLM):
     def load_model(self):
         return self.client
 
+    def available_models(self) -> list[str]:
+        try:
+            return sorted(m.id for m in self.client.models.list().data)
+        except Exception:  # listing is a diagnostic aid, never the failure itself
+            return []
+
     def generate(self, prompt: str) -> str:
         import time
 
@@ -81,6 +91,13 @@ class OpenAICompatibleLLM(DeepEvalBaseLLM):
                     messages=[{"role": "user", "content": prompt}],
                 )
                 return response.choices[0].message.content or ""
+            except openai.NotFoundError as exc:
+                # A bad model id 404s identically on every test case. Name the
+                # ids this key can actually reach instead of repeating it.
+                raise ModelNotAvailable(
+                    f"{self.model_name} is not available to this API key. "
+                    f"Reachable ids: {', '.join(self.available_models()) or '<none>'}"
+                ) from exc
             except openai.RateLimitError as exc:
                 last_error = exc
                 wait = parse_retry_wait(str(exc))

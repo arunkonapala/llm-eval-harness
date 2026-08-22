@@ -17,7 +17,7 @@ import pandas as pd
 from deepeval.test_case import LLMTestCase
 
 from evaluator.metrics import MetricSuite
-from evaluator.models import get_candidates, get_judge
+from evaluator.models import RateLimitExhausted, get_candidates, get_judge
 
 RESULTS_DIR = Path("results")
 
@@ -47,11 +47,16 @@ def run(testcases_path: str, limit: int | None = None) -> Path:
     judge = get_judge()
     suite = MetricSuite(judge)
     rows = []
+    quota_exhausted = False
 
     for candidate in get_candidates():
+        if quota_exhausted:
+            break
         model_name = candidate.get_model_name()
         print(f"\n=== Evaluating model: {model_name} ===")
         for _, tc in df.iterrows():
+            if quota_exhausted:
+                break
             print(f"  [{tc['case_id']}] {tc['category']}: {str(tc['prompt'])[:60]}...")
             try:
                 actual = candidate.generate(build_candidate_prompt(tc))
@@ -63,8 +68,15 @@ def run(testcases_path: str, limit: int | None = None) -> Path:
             for metric_name, metric_fn in suite.applicable_metrics(test_case).items():
                 try:
                     score, reason, verdict = metric_fn(test_case)
+                except RateLimitExhausted as exc:
+                    # Every remaining judge call would fail the same way, so
+                    # stop here rather than issuing dozens of doomed requests.
+                    print(f"    {metric_name}: quota exhausted — {exc}", file=sys.stderr)
+                    quota_exhausted = True
                 except Exception as exc:  # judge/parse failure — record, keep going
                     score, reason, verdict = None, f"metric error: {exc}", "Error"
+                if quota_exhausted:
+                    break
                 rows.append({
                     "case_id": tc["case_id"],
                     "category": tc["category"],
@@ -84,11 +96,17 @@ def run(testcases_path: str, limit: int | None = None) -> Path:
     results = pd.DataFrame(rows)
     results.to_csv(out_csv, index=False)
 
+    def tally(key: str) -> dict:
+        if results.empty:
+            return {}
+        return results.groupby([key, "result"]).size().unstack(fill_value=0).to_dict("index")
+
     summary = {
         "run_at": stamp,
         "testcases": len(df),
-        "by_model": results.groupby(["model", "result"]).size().unstack(fill_value=0).to_dict("index"),
-        "by_metric": results.groupby(["metric", "result"]).size().unstack(fill_value=0).to_dict("index"),
+        "quota_exhausted": quota_exhausted,
+        "by_model": tally("model"),
+        "by_metric": tally("metric"),
     }
     (RESULTS_DIR / f"summary_{stamp}.json").write_text(json.dumps(summary, indent=2))
 

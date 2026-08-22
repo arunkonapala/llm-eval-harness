@@ -8,8 +8,41 @@ Two providers are supported, selected in config.ini:
 
 import configparser
 import os
+import re
 
 from deepeval.models import DeepEvalBaseLLM
+
+# Longest server-suggested backoff still worth sleeping through mid-run.
+MAX_RETRY_WAIT = 75.0
+
+# Quota windows that do not refill inside a CI run, so retrying is pointless.
+_PER_RUN_FATAL = ("tokens per day", "requests per day", "(tpd)", "(rpd)")
+
+_RETRY_AFTER = re.compile(r"try again in (?:(\d+)m)?([\d.]+)s")
+
+
+class RateLimitExhausted(RuntimeError):
+    """A quota that will not reset before the run ends (e.g. Groq's TPD cap)."""
+
+
+def parse_retry_wait(message: str) -> float | None:
+    """Seconds to sleep before retrying a 429, or None if retrying is futile.
+
+    Groq reports both per-minute windows ("try again in 1.5s") and per-day
+    caps ("...tokens per day (TPD)... try again in 17m20.256s"). Only the
+    former clears during a run; treating them alike made the judge sleep the
+    cap five times per call and fail anyway, turning a 7-minute eval into a
+    3-hour one.
+    """
+    haystack = message.lower()
+    if any(marker in haystack for marker in _PER_RUN_FATAL):
+        return None
+
+    match = _RETRY_AFTER.search(haystack)
+    if not match:
+        return 20.0
+    wait = int(match.group(1) or 0) * 60 + float(match.group(2)) + 1
+    return wait if wait <= MAX_RETRY_WAIT else None
 
 
 def _load_config() -> configparser.ConfigParser:
@@ -33,7 +66,6 @@ class OpenAICompatibleLLM(DeepEvalBaseLLM):
         return self.client
 
     def generate(self, prompt: str) -> str:
-        import re
         import time
 
         import openai
@@ -51,13 +83,16 @@ class OpenAICompatibleLLM(DeepEvalBaseLLM):
                 return response.choices[0].message.content or ""
             except openai.RateLimitError as exc:
                 last_error = exc
-                # Groq formats the wait as "1.5s" or "2m3.4s"
-                match = re.search(r"try again in (?:(\d+)m)?([\d.]+)s", str(exc))
-                if match:
-                    wait = int(match.group(1) or 0) * 60 + float(match.group(2)) + 1
-                else:
-                    wait = 20.0
-                time.sleep(min(wait, 75.0))
+                wait = parse_retry_wait(str(exc))
+                if wait is None:
+                    # A per-day quota doesn't refill inside a CI run. Sleeping
+                    # the cap and retrying just burns MAX_RETRY_WAIT * 5 per
+                    # call and errors anyway, so surface it immediately.
+                    raise RateLimitExhausted(
+                        f"{self.model_name}: quota will not refill during this "
+                        f"run — {exc}"
+                    ) from exc
+                time.sleep(wait)
         raise last_error
 
     async def a_generate(self, prompt: str) -> str:

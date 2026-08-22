@@ -2,9 +2,11 @@
 # environment variable named in api_key_env.
 
 [judge]
-# The model DeepEval uses to score responses.
+# The model DeepEval uses to score responses. Keep this a different model
+# from every candidate: Groq meters tokens per model, so a shared id makes
+# judge and candidate traffic compete for one quota.
 provider = openai
-model = llama-3.3-70b-versatile
+model = openai/gpt-oss-120b
 base_url = https://api.groq.com/openai/v1
 api_key_env = LLM_API_KEY
 
@@ -15,7 +17,7 @@ sections = candidate_groq
 
 [candidate_groq]
 provider = openai
-model = moonshotai/kimi-k2-instruct
+model = qwen/qwen3.6-27b
 base_url = https://api.groq.com/openai/v1
 api_key_env = LLM_API_KEY
 

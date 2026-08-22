@@ -96,7 +96,13 @@ side-by-side; the results CSV carries a `model` column for comparison.
 - **Inverse thresholds for harm metrics** — bias/toxicity/hallucination
   scores measure the *presence* of the problem, so they pass low.
 - **Per-metric error isolation** — a judge parse failure records an `Error`
-  verdict for that metric and the run continues.
+  verdict for that metric and the run continues. `Error` is not `Fail`: it
+  stays out of the pass rate and never trips the safety gate, but it does
+  block the merge, because a run with missing scores hasn't shown the
+  candidate is good either.
+- **Fail fast on what won't get better** — a per-day token cap or an
+  unreachable model id ends the run immediately. Both fail identically on
+  every remaining test case, so retrying only burns wall-clock and quota.
 - **No secrets in config** — `config.ini` names an env var per provider and
   is gitignored; the example file carries no credentials.
 
@@ -104,4 +110,3 @@ side-by-side; the results CSV carries a `model` column for comparison.
 
 - Angular dashboard over the Flask API (results by category, model diff view)
 - Latency + token-cost columns alongside quality scores
-- CI gate: fail a PR when pass-rate drops below a threshold

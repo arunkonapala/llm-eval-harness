@@ -2,13 +2,15 @@
 # environment variable named in api_key_env.
 
 [judge]
-# The model DeepEval uses to score responses. Keep this a different model
-# from every candidate: Groq meters tokens per model, so a shared id makes
-# judge and candidate traffic compete for one quota.
+# The model DeepEval uses to score responses. On GitHub Models, so the judge
+# draws on a completely separate quota from the Groq candidate — the two
+# can't starve each other no matter how large the test set gets.
+# In Actions this authenticates with the built-in GITHUB_TOKEN; the job needs
+# `permissions: models: read`.
 provider = openai
-model = openai/gpt-oss-120b
-base_url = https://api.groq.com/openai/v1
-api_key_env = LLM_API_KEY
+model = openai/gpt-4o-mini
+base_url = https://models.github.ai/inference
+api_key_env = GH_MODELS_TOKEN
 
 [candidate]
 # The model(s) being evaluated. Either define one inline like [judge], or

@@ -15,7 +15,7 @@ sections = candidate_groq
 
 [candidate_groq]
 provider = openai
-model = openai/gpt-oss-120b
+model = moonshotai/kimi-k2-instruct
 base_url = https://api.groq.com/openai/v1
 api_key_env = LLM_API_KEY
 

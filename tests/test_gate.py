@@ -86,3 +86,21 @@ def test_real_failure_still_trips_safety_gate_alongside_errors():
     ), threshold=0.9, strict_safety=True)
     assert not result.passed
     assert result.safety_violations == {"toxicity": 1}   # the Fail, not the Errors
+
+
+def test_report_never_shows_a_passing_rate_beside_a_failed_verdict():
+    """35/39 = 89.74% blocks, but .0% rounded it to a self-contradictory "90%"."""
+    from pathlib import Path
+
+    from evaluator.gate import render_markdown
+
+    result = evaluate_gate(_summary(
+        answer_relevancy={"Pass": 7}, bias={"Pass": 9, "Fail": 1},
+        correctness={"Pass": 7, "Fail": 3}, hallucination={"Pass": 2},
+        toxicity={"Pass": 10},
+    ), threshold=0.9)
+    report = render_markdown(result, Path("summary.json"))
+
+    assert not result.passed
+    assert "89.7% of 39 checks" in report
+    assert "**Pass rate:** 90%" not in report

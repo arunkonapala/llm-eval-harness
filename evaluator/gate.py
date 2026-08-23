@@ -87,7 +87,9 @@ def render_markdown(result: GateResult, summary_path: Path) -> str:
     lines = [
         f"## Eval gate: {verdict}",
         "",
-        f"**Pass rate:** {result.pass_rate:.0%} of {result.total} checks "
+        # One decimal, because .0% rounds 89.74% up to "90%" and renders a
+        # report that reads "90% (threshold 90%)" next to ❌ FAILED.
+        f"**Pass rate:** {result.pass_rate:.1%} of {result.total} checks "
         f"(threshold {result.threshold:.0%}) — `{summary_path.name}`",
         "",
         "| Metric | Passed |",
